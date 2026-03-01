@@ -10,6 +10,8 @@ namespace PlayerMovement
         public DashModule Dash = new();
         public WallRunModule WallRun = new();
         public SlideModule Slide = new();
+        public SlamModule Slam = new();
+        public SlopeModule Slope = new();
 
         public void Initialise(MoveConfig cfg, Transform body, CharacterController cc, 
                               System.Func<bool> crouchBlocked, Transform cameraTransform)
@@ -20,6 +22,8 @@ namespace PlayerMovement
             Dash.Initialise(cfg);
             WallRun.Initialise(cfg, body, cc);
             Slide.Initialise(cfg, cc, crouchBlocked, cameraTransform);
+            Slam.Initialise(cfg);
+            Slope.Initialise(cfg, cc);
         }
 
         public PlayerState Step(PlayerState s, PlayerInput inp,
@@ -48,6 +52,10 @@ namespace PlayerMovement
             WallRun.CheckWalls();
             WallRun.Simulate(ref s, inp, forward, isGrounded);
             bool isWallRunning = s.Flags.HasFlag(StateFlags.IsWallRunning);
+
+            // Slope surfing detection
+            Slope.CheckSlope();
+            Slope.Simulate(ref s, inp, isGrounded);
 
             // Jump
             if (inp.JumpPressed)
@@ -78,7 +86,10 @@ namespace PlayerMovement
             // Abilities
             Dash.Simulate(ref s, inp, forward, right);
             Slide.Simulate(ref s, inp, forward, isGrounded);
+            Slam.Simulate(ref s, inp, isGrounded);
             Gravity.Simulate(ref s, inp);
+
+            // Note: gravity counter disabled - WallRunGravity lerp already controls wall descent
 
             return s;
         }

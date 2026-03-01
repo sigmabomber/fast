@@ -18,6 +18,7 @@ namespace PlayerMovement
         public float Gravity         = -25f;  // reduced for gentler arc
         public float FallMultiplier  = 1.4f;  // reduced for smoother descent
         public float MaxFallSpeed    = 60f;
+        public float GravityForceMultiplier = 1.0f; // force-based gravity counter (Dani style)
         public int   MaxJumps        = 2;
 
         [Header("Bhop")]
@@ -33,14 +34,21 @@ namespace PlayerMovement
 
         [Header("Wall Run")]
         public float     WallRunSpeed            = 20f;
-        public float     WallRunGravity          = -6f; // slightly steeper downward slide
+        public float     WallRunGravity          = -15f; // steep downward slide while on wall
         public float     WallRunJumpForce        = 13f;
         public float     WallRunJumpSideForce    = 9f;
-        public float     WallRunJumpForwardForce = 6f; // forward push when jumping off wall
-        public float     WallRunYawSpeed         = 180f; // degrees/sec auto-rotate along wall
+        public float     WallRunJumpForwardForce = 6f;
+        public float     WallRunYawSpeed         = 180f;
+        public float     WallRunInitialUpForce   = 5f;  // minimal upward impulse when entering wallrun
+        public float     WallRunEscapeForce      = 30f;  // push away when cancelling wallrun
         public float     WallCheckDistance       = 0.7f;
         public float     WallRunTime             = 1.5f;
-        public LayerMask WallLayer = ~0; // default to all layers (quick testing)
+        public LayerMask WallLayer = ~0;
+
+        [Header("Slope Surfing")]
+        public float MaxSlopeAngle      = 35f;  // max angle to be considered "floor"
+        public float SurfSlopeAccel      = 50f; // extra accel down slope when surfing
+        public float SurfGravityMultiplier = 1.5f; // gravity boost on slopes
 
         [Header("Slam")]
         public float SlamForce = -45f;
@@ -58,7 +66,9 @@ namespace PlayerMovement
         [Header("Air Control")]
         public float AirDirectionChangeSpeed = 15f;
         public bool  AirControlRequiresInput = true;
-        public float MaxAirSpeed             = 30f;
+        public float MaxAirSpeed             = 30f;    // normal max speed
+        public float MaxAirStrafeSpeed       = 60f;    // can build this via strafing
+        public float AirStrafeAcceleration   = 25f;    // extra accel perpendicular to velocity
 
         [Header("Camera")]
         public float MouseSensitivity   = 0.15f;

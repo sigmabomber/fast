@@ -74,35 +74,51 @@ namespace PlayerMovement
                 flatCamRight.Normalize();
 
             Vector3 flatVel = new Vector3(s.Velocity.x, 0f, s.Velocity.z);
+            float currentSpeed = flatVel.magnitude;
             float targetSpeed = inp.Sprint ? _cfg.SprintSpeed : _cfg.WalkSpeed;
 
             if (hasInput)
             {
-                // Camera-relative movement direction (like working PlayerController)
+                // Camera-relative movement direction
                 Vector3 wishDir = (flatCamRight * inp.Move.x + flatCamForward * inp.Move.y).normalized;
                 Vector3 wishVel = wishDir * targetSpeed;
 
-                float currentSpeed = flatVel.magnitude;
-                
                 if (currentSpeed > 0.1f)
                 {
                     float dot = Vector3.Dot(flatVel.normalized, wishDir);
                     
                     if (dot < 0.95f) // Significant direction change
                     {
-                        // Rotate velocity toward wish direction
-                        Vector3 newDir = Vector3.RotateTowards(
-                            flatVel.normalized, 
-                            wishDir, 
-                            _cfg.AirDirectionChangeSpeed * Mathf.Deg2Rad * inp.DeltaTime, 
-                            1f
-                        );
-                        s.Velocity.x = newDir.x * currentSpeed;
-                        s.Velocity.z = newDir.z * currentSpeed;
+                        // Check if we're strafing (perpendicular to current velocity)
+                        float perpDot = Mathf.Abs(Vector3.Dot(flatVel.normalized, Vector3.Cross(wishDir, Vector3.up)));
+                        
+                        if (perpDot > 0.7f) // Mostly perpendicular = strafing
+                        {
+                            // Apply strafe acceleration to build speed when strafing
+                            Vector3 strafeDir = Vector3.Cross(flatVel.normalized, Vector3.up).normalized;
+                            if (Vector3.Dot(strafeDir, wishDir) < 0f)
+                                strafeDir = -strafeDir;
+                            
+                            Vector3 strafeVel = flatVel + strafeDir * _cfg.AirStrafeAcceleration * inp.DeltaTime;
+                            s.Velocity.x = strafeVel.x;
+                            s.Velocity.z = strafeVel.z;
+                        }
+                        else
+                        {
+                            // Rotate velocity toward wish direction
+                            Vector3 newDir = Vector3.RotateTowards(
+                                flatVel.normalized, 
+                                wishDir, 
+                                _cfg.AirDirectionChangeSpeed * Mathf.Deg2Rad * inp.DeltaTime, 
+                                1f
+                            );
+                            s.Velocity.x = newDir.x * currentSpeed;
+                            s.Velocity.z = newDir.z * currentSpeed;
+                        }
                     }
                     else
                     {
-                        // Small direction change - accelerate
+                        // Small direction change - accelerate normally
                         s.Velocity.x = Mathf.MoveTowards(s.Velocity.x, wishVel.x, 
                                             _cfg.AirAcceleration * inp.DeltaTime);
                         s.Velocity.z = Mathf.MoveTowards(s.Velocity.z, wishVel.z, 
@@ -118,13 +134,15 @@ namespace PlayerMovement
                                         _cfg.AirAcceleration * inp.DeltaTime);
                 }
 
-                // Speed limit
+                // Speed limit: use strafe cap when near-strafing, normal cap otherwise
                 float newFlatSpeed = new Vector3(s.Velocity.x, 0f, s.Velocity.z).magnitude;
-                if (newFlatSpeed > _cfg.MaxAirSpeed)
+                float speedLimit = (newFlatSpeed > _cfg.MaxAirSpeed * 1.2f) ? _cfg.MaxAirStrafeSpeed : _cfg.MaxAirSpeed;
+                
+                if (newFlatSpeed > speedLimit)
                 {
                     Vector3 flatDir = new Vector3(s.Velocity.x, 0f, s.Velocity.z).normalized;
-                    s.Velocity.x = flatDir.x * _cfg.MaxAirSpeed;
-                    s.Velocity.z = flatDir.z * _cfg.MaxAirSpeed;
+                    s.Velocity.x = flatDir.x * speedLimit;
+                    s.Velocity.z = flatDir.z * speedLimit;
                 }
             }
         }

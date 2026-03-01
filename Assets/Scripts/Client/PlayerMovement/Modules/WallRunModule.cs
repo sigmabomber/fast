@@ -60,10 +60,14 @@ namespace PlayerMovement
 
             if (canWallRun)
             {
-                if (!s.Flags.HasFlag(StateFlags.IsWallRunning))
+                bool wasNotWallRunning = !s.Flags.HasFlag(StateFlags.IsWallRunning);
+                
+                if (wasNotWallRunning)
                 {
                     s.WallRunTimer = _cfg.WallRunTime;
                     s.JumpsRemaining = 1;
+                    // Apply initial upward impulse on wallrun start (Dani style)
+                    s.Velocity.y = _cfg.WallRunInitialUpForce;
                 }
                 
                 s.Flags |= StateFlags.IsWallRunning;
@@ -87,6 +91,8 @@ namespace PlayerMovement
                 s.WallRunTimer -= inp.DeltaTime;
                 if (s.WallRunTimer <= 0f)
                 {
+                    // Time ran out - exit wallrun and ensure downward velocity to separate from wall
+                    s.Velocity.y = Mathf.Min(s.Velocity.y, -5f); // drop down
                     s.Flags &= ~StateFlags.IsWallRunning;
                     s.Flags &= ~StateFlags.IsOnLeftWall;
                     s.Flags &= ~StateFlags.IsOnRightWall;
@@ -103,8 +109,8 @@ namespace PlayerMovement
 
                 s.Velocity.x = wallForward.x * _cfg.WallRunSpeed;
                 s.Velocity.z = wallForward.z * _cfg.WallRunSpeed;
-                // Faster lerp to gravity so the downward slide is pronounced
-                s.Velocity.y = Mathf.Lerp(s.Velocity.y, _cfg.WallRunGravity, inp.DeltaTime * 12f);
+                // Fast lerp to gravity so the downward slide is smooth
+                s.Velocity.y = Mathf.Lerp(s.Velocity.y, _cfg.WallRunGravity, inp.DeltaTime * 25f);
             }
             else
             {
