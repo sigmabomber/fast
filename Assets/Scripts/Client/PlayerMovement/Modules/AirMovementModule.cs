@@ -152,6 +152,10 @@ namespace PlayerMovement
             Vector2 horizontalVel = new Vector2(s.Velocity.x, s.Velocity.z);
             float horizontalSpeed = horizontalVel.magnitude;
             
+            // If we were sliding, cancel slide so gravity and normal air simulation apply
+            s.Flags &= ~StateFlags.IsSliding;
+            s.Flags &= ~StateFlags.IsCrouching;
+
             s.Velocity.y = _cfg.JumpForce;
             s.CoyoteTimer = 0f;
 

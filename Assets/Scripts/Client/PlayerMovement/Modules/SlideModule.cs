@@ -10,6 +10,10 @@ namespace PlayerMovement
         private Transform _cameraTransform;
         private float _cameraCurrentY;
 
+        // Separate flag so we know a slide genuinely ended this frame
+        // and don't immediately re-enter via the crouch block.
+        private bool _slideEndedThisFrame;
+
         public void Initialise(MoveConfig cfg, CharacterController cc,
                                System.Func<bool> crouchBlocked, Transform cameraTransform)
         {
@@ -26,13 +30,16 @@ namespace PlayerMovement
                              Vector3 forward, bool isGrounded, Vector3 preMoveFlatVel)
         {
             bool crouchHeld = inp.Crouch;
+            _slideEndedThisFrame = false;
 
             // ── Slide Start ──────────────────────────────────────────────────────────
-            // Use pre-movement flat velocity so we capture full momentum before
-            // GroundModule has a chance to apply friction and bleed it off.
+            // preMoveFlatVel is captured in MovementSimulation BEFORE GroundModule runs,
+            // so it still holds full sprint momentum. This is the correct value to use.
             float horizSpeed = preMoveFlatVel.magnitude;
 
-            if (inp.CrouchJustPressed && crouchHeld && isGrounded
+            if (inp.CrouchJustPressed
+                && crouchHeld
+                && isGrounded
                 && !s.Flags.HasFlag(StateFlags.IsSliding)
                 && horizSpeed >= _cfg.SlideThreshold)
             {
@@ -43,34 +50,47 @@ namespace PlayerMovement
             if (s.Flags.HasFlag(StateFlags.IsSliding))
             {
                 Vector3 slideVel = new Vector3(s.Velocity.x, 0f, s.Velocity.z);
-                float slideSpeed = slideVel.magnitude;
 
-                // Constant-magnitude drag (mirrors Dani's counter-force approach).
-                // Fast slides stay fast; only the tail end bleeds out quickly.
-                // Tune _cfg.SlideFriction in the range 3–8 (units/sec).
+                // Apply drag first, then read the resulting speed for end-condition.
+                // This prevents the "speed read before drag" stall bug where the slide
+                // never officially ends because we check the old speed value.
                 float drag = _cfg.SlideFriction * inp.DeltaTime;
                 slideVel = Vector3.MoveTowards(slideVel, Vector3.zero, drag);
 
                 s.Velocity.x = slideVel.x;
                 s.Velocity.z = slideVel.z;
 
-                // End conditions: too slow OR player released crouch
-                if (slideSpeed < 1.5f || !crouchHeld)
+                // End conditions checked AFTER drag so speed is current
+                float speedAfterDrag = slideVel.magnitude;
+                if (speedAfterDrag < 1.5f || !crouchHeld)
+                {
                     EndSlide(ref s);
+                    _slideEndedThisFrame = true;
+                }
             }
 
             // ── Normal Crouch (not sliding) ──────────────────────────────────────────
-            if (!s.Flags.HasFlag(StateFlags.IsSliding))
+            // Guard: don't immediately re-crouch on the same frame the slide ended,
+            // otherwise camera stays pinned low and the infinite-slide re-entry can occur.
+            if (!s.Flags.HasFlag(StateFlags.IsSliding) && !_slideEndedThisFrame)
             {
                 if (crouchHeld && isGrounded)
                 {
                     s.Flags |= StateFlags.IsCrouching;
                 }
-                else if (s.Flags.HasFlag(StateFlags.IsCrouching))
+                else
                 {
-                    if (!_crouchBlocked())
-                        s.Flags &= ~StateFlags.IsCrouching;
+                    // Hold-based crouch: only crouch while the button is held.
+                    s.Flags &= ~StateFlags.IsCrouching;
                 }
+            }
+
+            // If slide ended and crouch is no longer held, clear crouch immediately
+            // so the camera rises and the player can walk at full height.
+            if (_slideEndedThisFrame && !crouchHeld)
+            {
+                if (!_crouchBlocked())
+                    s.Flags &= ~StateFlags.IsCrouching;
             }
 
             // ── Camera / Collider Height ─────────────────────────────────────────────
@@ -89,12 +109,10 @@ namespace PlayerMovement
             Vector3 slideDir = flatVel.magnitude > 0.1f ? flatVel.normalized : forward;
             float currentSpeed = flatVel.magnitude;
 
-            // Never reduce speed on slide entry.
-            // Give a small boost only if we're already at or above SlideForce;
-            // otherwise snap up to SlideForce so slow-walks still feel snappy.
-            float entrySpeed = Mathf.Max(currentSpeed, _cfg.SlideForce) * 1.1f;
+            // Never reduce speed on entry. Boost slightly above current speed,
+            // but only use SlideForce as a floor for slow/stationary entries.
+            float entrySpeed = Mathf.Max(currentSpeed * 1.1f, _cfg.SlideForce);
 
-            // Write back: preserve direction exactly, scale magnitude
             s.Velocity.x = slideDir.x * entrySpeed;
             s.Velocity.z = slideDir.z * entrySpeed;
         }
@@ -102,10 +120,11 @@ namespace PlayerMovement
         private void EndSlide(ref PlayerState s)
         {
             s.Flags &= ~StateFlags.IsSliding;
-            // Keep crouching flag — let the normal crouch block above decide
-            // whether to clear it next frame (prevents a one-frame standing pop).
-            // If the player has already released crouch the block above will
-            // clear it immediately anyway.
+            // Also clear IsCrouching here. The normal-crouch block above will
+            // re-set it next frame if the player is still holding crouch — but
+            // NOT on the same frame thanks to _slideEndedThisFrame guard.
+            // This ensures the camera always gets at least one frame to start rising.
+            s.Flags &= ~StateFlags.IsCrouching;
         }
 
         private void UpdateCameraHeight(PlayerState s, float deltaTime)
@@ -115,21 +134,33 @@ namespace PlayerMovement
             bool crouched = s.Flags.HasFlag(StateFlags.IsCrouching)
                          || s.Flags.HasFlag(StateFlags.IsSliding);
 
-            float targetCamY    = crouched ? _cfg.CrouchHeight * 0.6f  : _cfg.StandHeight * 0.45f;
-            float targetCCHeight = crouched ? _cfg.CrouchHeight         : _cfg.StandHeight;
+            float targetCamY     = crouched ? _cfg.CrouchHeight * 0.6f : _cfg.StandHeight * 0.45f;
+            float targetCCHeight = crouched ? _cfg.CrouchHeight        : _cfg.StandHeight;
 
-            // Smooth camera eye height
-            _cameraCurrentY = Mathf.Lerp(_cameraCurrentY, targetCamY,
-                                          deltaTime * _cfg.CameraCrouchSpeed);
-
-            Vector3 pos = _cameraTransform.localPosition;
-            _cameraTransform.localPosition = new Vector3(pos.x, _cameraCurrentY, pos.z);
-
-            // Smooth collider height + re-centre
-            if (Mathf.Abs(_cc.height - targetCCHeight) > 0.01f)
+            // If not crouched at all, snap back to standing height to avoid
+            // lingering lerp artifacts where the controller remains low.
+            if (!crouched)
             {
-                _cc.height = Mathf.Lerp(_cc.height, targetCCHeight, deltaTime * 15f);
+                _cameraCurrentY = targetCamY;
+                Vector3 pos = _cameraTransform.localPosition;
+                _cameraTransform.localPosition = new Vector3(pos.x, _cameraCurrentY, pos.z);
+
+                _cc.height = targetCCHeight;
                 _cc.center = Vector3.up * (_cc.height * 0.5f);
+            }
+            else
+            {
+                _cameraCurrentY = Mathf.Lerp(_cameraCurrentY, targetCamY,
+                                              deltaTime * _cfg.CameraCrouchSpeed);
+
+                Vector3 pos = _cameraTransform.localPosition;
+                _cameraTransform.localPosition = new Vector3(pos.x, _cameraCurrentY, pos.z);
+
+                if (Mathf.Abs(_cc.height - targetCCHeight) > 0.01f)
+                {
+                    _cc.height = Mathf.Lerp(_cc.height, targetCCHeight, deltaTime * 15f);
+                    _cc.center = Vector3.up * (_cc.height * 0.5f);
+                }
             }
         }
     }
