@@ -32,12 +32,14 @@ namespace PlayerMovement
         public float DashCooldown = 0.8f;
 
         [Header("Wall Run")]
-        public float     WallRunSpeed        = 20f;
-        public float     WallRunGravity      = -8f;   // downward slide on curved walls
-        public float     WallRunJumpForce    = 13f;
-        public float     WallRunJumpSideForce= 13f;  // increased for bigger push-away
-        public float     WallCheckDistance   = 0.7f;
-        public float     WallRunTime         = 1.5f;
+        public float     WallRunSpeed            = 20f;
+        public float     WallRunGravity          = -6f; // slightly steeper downward slide
+        public float     WallRunJumpForce        = 13f;
+        public float     WallRunJumpSideForce    = 9f;
+        public float     WallRunJumpForwardForce = 6f; // forward push when jumping off wall
+        public float     WallRunYawSpeed         = 180f; // degrees/sec auto-rotate along wall
+        public float     WallCheckDistance       = 0.7f;
+        public float     WallRunTime             = 1.5f;
         public LayerMask WallLayer = ~0; // default to all layers (quick testing)
 
         [Header("Slam")]

@@ -13,13 +13,6 @@ namespace PlayerMovement
         public RaycastHit LeftWallHit { get; private set; }
         public RaycastHit RightWallHit { get; private set; }
 
-        public Vector3 GetCurrentWallNormal()
-        {
-            if (IsOnLeftWall) return LeftWallHit.normal;
-            if (IsOnRightWall) return RightWallHit.normal;
-            return Vector3.zero;
-        }
-
         public void Initialise(MoveConfig cfg, Transform body, CharacterController cc)
         {
             _cfg = cfg;
@@ -56,7 +49,14 @@ namespace PlayerMovement
                 return;
             }
 
-            bool canWallRun = (IsOnLeftWall || IsOnRightWall) && !isGrounded;
+            // Require either active movement input or sufficient horizontal momentum
+            // before entering a wallrun. This prevents starting a wallrun when the
+            // player simply jumps in place next to a wall.
+            float horizSpeed = new Vector2(s.Velocity.x, s.Velocity.z).magnitude;
+            bool hasMoveInput = inp.Move.magnitude > 0.1f;
+            bool hasMomentum = horizSpeed > 1.0f;
+
+            bool canWallRun = (IsOnLeftWall || IsOnRightWall) && !isGrounded && (hasMoveInput || hasMomentum);
 
             if (canWallRun)
             {
@@ -119,9 +119,21 @@ namespace PlayerMovement
             if (!s.Flags.HasFlag(StateFlags.IsWallRunning)) return false;
 
             Vector3 wallNormal = IsOnLeftWall ? LeftWallHit.normal : RightWallHit.normal;
-            s.Velocity = wallNormal * _cfg.WallRunJumpSideForce;
+            // direction along the wall
+            Vector3 wallForward = Vector3.Cross(wallNormal, Vector3.up).normalized;
+            if (Vector3.Dot(wallForward, _body.forward) < 0f)
+                wallForward = -wallForward;
+
+            // push away from the wall (normal) and give a forward component along the wall
+            Vector3 jumpVel = wallNormal * _cfg.WallRunJumpSideForce + wallForward * _cfg.WallRunJumpForwardForce;
+            s.Velocity.x = jumpVel.x;
+            s.Velocity.z = jumpVel.z;
             s.Velocity.y = _cfg.WallRunJumpForce;
+
+            // clear wall run state
             s.Flags &= ~StateFlags.IsWallRunning;
+            s.Flags &= ~StateFlags.IsOnLeftWall;
+            s.Flags &= ~StateFlags.IsOnRightWall;
             return true;
         }
     }
