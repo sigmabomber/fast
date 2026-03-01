@@ -51,6 +51,6 @@ MonoBehaviour:
   AirControlRequiresInput: 0
   MaxAirSpeed: 500
   MouseSensitivity: 0.15
-  WallRunCameraTilt: 5
+  WallRunCameraTilt: -5
   CameraTiltSpeed: 12
   CameraCrouchSpeed: 14
