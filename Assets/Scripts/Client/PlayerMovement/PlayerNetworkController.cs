@@ -128,11 +128,12 @@ namespace PlayerMovement
             next.Tick = inp.Tick;
             _state = next;
 
-            // camera visual updates (tilt & height)
+            // camera visual updates (tilt & height & auto wall-track)
             bool wallRun    = next.Flags.HasFlag(StateFlags.IsWallRunning);
             bool onRight    = next.Flags.HasFlag(StateFlags.IsOnRightWall);
             bool crouching  = next.Flags.HasFlag(StateFlags.IsCrouching);
-            _camMod.UpdateVisuals(wallRun, onRight, crouching, inp.DeltaTime);
+            Vector3 wallNormal = wallRun ? _sim.WallRun.GetCurrentWallNormal() : Vector3.zero;
+            _camMod.UpdateVisuals(wallRun, onRight, crouching, inp.DeltaTime, wallNormal, transform);
 
             // Send the same input to the server (server remains authoritative)
             SendInputToServer(inp, transform.eulerAngles.y);

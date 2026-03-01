@@ -28,12 +28,27 @@ namespace PlayerMovement
         }
 
         public void UpdateVisuals(bool wallRunning, bool onRightWall,
-                                  bool crouching, float dt)
+                                  bool crouching, float dt, Vector3 wallNormal = default, Transform body = null)
         {
             float targetTilt = wallRunning
                 ? (onRightWall ? -_cfg.WallRunCameraTilt : _cfg.WallRunCameraTilt)
                 : 0f;
             _tilt = Mathf.Lerp(_tilt, targetTilt, dt * _cfg.CameraTiltSpeed);
+            
+            // Auto-rotate body to face along the wall when wall-running
+            if (wallRunning && wallNormal.magnitude > 0.1f && body != null)
+            {
+                // Calculate direction along the wall (perpendicular to normal)
+                Vector3 wallDir = Vector3.Cross(wallNormal, Vector3.up).normalized;
+                float targetYaw = Mathf.Atan2(wallDir.x, wallDir.z) * Mathf.Rad2Deg;
+                
+                // Smoothly interpolate body rotation toward wall direction
+                float currentYaw = body.eulerAngles.y;
+                float diffYaw = Mathf.DeltaAngle(currentYaw, targetYaw);
+                float newYaw = currentYaw + Mathf.Clamp(diffYaw, -90f * dt, 90f * dt);
+                body.rotation = Quaternion.Euler(0f, newYaw, 0f);
+            }
+            
             _cam.localRotation = Quaternion.Euler(_pitch, 0f, 0f)
                                * Quaternion.Euler(0f, 0f, _tilt);
 

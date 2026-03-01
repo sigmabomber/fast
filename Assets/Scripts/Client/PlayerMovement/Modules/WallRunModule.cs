@@ -13,6 +13,13 @@ namespace PlayerMovement
         public RaycastHit LeftWallHit { get; private set; }
         public RaycastHit RightWallHit { get; private set; }
 
+        public Vector3 GetCurrentWallNormal()
+        {
+            if (IsOnLeftWall) return LeftWallHit.normal;
+            if (IsOnRightWall) return RightWallHit.normal;
+            return Vector3.zero;
+        }
+
         public void Initialise(MoveConfig cfg, Transform body, CharacterController cc)
         {
             _cfg = cfg;
@@ -96,7 +103,8 @@ namespace PlayerMovement
 
                 s.Velocity.x = wallForward.x * _cfg.WallRunSpeed;
                 s.Velocity.z = wallForward.z * _cfg.WallRunSpeed;
-                s.Velocity.y = Mathf.Lerp(s.Velocity.y, _cfg.WallRunGravity, inp.DeltaTime * 5f);
+                // Faster lerp to gravity so the downward slide is pronounced
+                s.Velocity.y = Mathf.Lerp(s.Velocity.y, _cfg.WallRunGravity, inp.DeltaTime * 12f);
             }
             else
             {
