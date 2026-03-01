@@ -10,7 +10,6 @@ namespace PlayerMovement
         public DashModule Dash = new();
         public WallRunModule WallRun = new();
         public SlideModule Slide = new();
-        public SlamModule Slam = new();
 
         public void Initialise(MoveConfig cfg, Transform body, CharacterController cc, 
                               System.Func<bool> crouchBlocked, Transform cameraTransform)
@@ -21,7 +20,6 @@ namespace PlayerMovement
             Dash.Initialise(cfg);
             WallRun.Initialise(cfg, body, cc);
             Slide.Initialise(cfg, cc, crouchBlocked, cameraTransform);
-            Slam.Initialise(cfg);
         }
 
         public PlayerState Step(PlayerState s, PlayerInput inp,
@@ -60,8 +58,6 @@ namespace PlayerMovement
                 isWallRunning = s.Flags.HasFlag(StateFlags.IsWallRunning);
             }
 
-            // Slam ability (simple downward boost)
-            Slam.Simulate(ref s, inp, isGrounded);
 
             // Movement
             bool isSliding = s.Flags.HasFlag(StateFlags.IsSliding);

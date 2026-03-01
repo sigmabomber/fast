@@ -128,12 +128,32 @@ namespace PlayerMovement
             next.Tick = inp.Tick;
             _state = next;
 
-            // camera visual updates (tilt & height & auto wall-track)
+            // camera visual updates (tilt & height)
             bool wallRun    = next.Flags.HasFlag(StateFlags.IsWallRunning);
             bool onRight    = next.Flags.HasFlag(StateFlags.IsOnRightWall);
             bool crouching  = next.Flags.HasFlag(StateFlags.IsCrouching);
-            Vector3 wallNormal = wallRun ? _sim.WallRun.GetCurrentWallNormal() : Vector3.zero;
-            _camMod.UpdateVisuals(wallRun, onRight, crouching, inp.DeltaTime, wallNormal, transform);
+
+            // Auto-follow curved walls: gently rotate the body toward the
+            // wall-forward direction so the player doesn't need to move the
+            // mouse to maintain the run.
+            if (wallRun && _sim != null)
+            {
+                // read wall info from the wallrun module
+                Vector3 wallNormal = _sim.WallRun.IsOnLeftWall
+                    ? _sim.WallRun.LeftWallHit.normal
+                    : _sim.WallRun.RightWallHit.normal;
+
+                Vector3 wallForward = Vector3.Cross(wallNormal, Vector3.up).normalized;
+                if (Vector3.Dot(wallForward, transform.forward) < 0f)
+                    wallForward = -wallForward;
+
+                float targetYaw = Mathf.Atan2(wallForward.x, wallForward.z) * Mathf.Rad2Deg;
+                float curYaw = transform.eulerAngles.y;
+                float newYaw = Mathf.MoveTowardsAngle(curYaw, targetYaw, _cfg.WallRunYawSpeed * inp.DeltaTime);
+                transform.rotation = Quaternion.Euler(0f, newYaw, 0f);
+            }
+
+            _camMod.UpdateVisuals(wallRun, onRight, crouching, inp.DeltaTime);
 
             // Send the same input to the server (server remains authoritative)
             SendInputToServer(inp, transform.eulerAngles.y);
