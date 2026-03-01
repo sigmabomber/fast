@@ -9,9 +9,9 @@ namespace PlayerMovement
         // original values from the reference script; keeps pacing familiar
         public float WalkSpeed          = 18f;
         public float SprintSpeed        = 24f;
-        public float GroundAcceleration = 80f;
+        public float GroundAcceleration = 60f;  // reduced for smoother movement
         public float AirAcceleration    = 20f;
-        public float Friction           = 30f;
+        public float Friction           = 15f;  // reduced for fluid sliding
 
         [Header("Jump")]
         public float JumpForce       = 13f;   // slight boost to compensate for lower gravity
@@ -39,7 +39,7 @@ namespace PlayerMovement
         public float     WallRunJumpSideForce    = 9f;
         public float     WallRunJumpForwardForce = 6f;
         public float     WallRunYawSpeed         = 180f;
-        public float     WallRunInitialUpForce   = 5f;  // minimal upward impulse when entering wallrun
+        public float     WallRunInitialUpForce   = 0f;  // disabled - causes upward bounce
         public float     WallRunEscapeForce      = 30f;  // push away when cancelling wallrun
         public float     WallCheckDistance       = 0.7f;
         public float     WallRunTime             = 1.5f;

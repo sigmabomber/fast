@@ -12,7 +12,7 @@ namespace PlayerMovement
         [SerializeField] private Camera _playerCamera;
 
         [Header("Interpolation")]
-        [SerializeField] private float _interpSpeed = 60f;
+        [SerializeField] private float _interpSpeed = 120f;
 
         private MovementSimulation _sim;
         private InputModule _input;

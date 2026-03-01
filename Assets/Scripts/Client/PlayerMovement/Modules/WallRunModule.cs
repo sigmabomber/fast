@@ -66,8 +66,7 @@ namespace PlayerMovement
                 {
                     s.WallRunTimer = _cfg.WallRunTime;
                     s.JumpsRemaining = 1;
-                    // Apply initial upward impulse on wallrun start (Dani style)
-                    s.Velocity.y = _cfg.WallRunInitialUpForce;
+                    // No initial impulse - gravity handles descent
                 }
                 
                 s.Flags |= StateFlags.IsWallRunning;
@@ -91,14 +90,14 @@ namespace PlayerMovement
                 s.WallRunTimer -= inp.DeltaTime;
                 if (s.WallRunTimer <= 0f)
                 {
-                    // Time ran out - exit wallrun and ensure downward velocity to separate from wall
-                    s.Velocity.y = Mathf.Min(s.Velocity.y, -5f); // drop down
+                    // Time ran out - exit wallrun with downward force
+                    s.Velocity.y = -8f;
                     s.Flags &= ~StateFlags.IsWallRunning;
                     s.Flags &= ~StateFlags.IsOnLeftWall;
                     s.Flags &= ~StateFlags.IsOnRightWall;
                     return;
                 }
-
+    
                 // Calculate direction along the wall, perpendicular to the normal
                 Vector3 wallNormal = IsOnLeftWall ? LeftWallHit.normal : RightWallHit.normal;
                 Vector3 wallForward = Vector3.Cross(wallNormal, Vector3.up).normalized;
@@ -109,8 +108,8 @@ namespace PlayerMovement
 
                 s.Velocity.x = wallForward.x * _cfg.WallRunSpeed;
                 s.Velocity.z = wallForward.z * _cfg.WallRunSpeed;
-                // Fast lerp to gravity so the downward slide is smooth
-                s.Velocity.y = Mathf.Lerp(s.Velocity.y, _cfg.WallRunGravity, inp.DeltaTime * 25f);
+                // Smooth lerp down to wall gravity for flowing descent
+                s.Velocity.y = Mathf.Lerp(s.Velocity.y, _cfg.WallRunGravity, inp.DeltaTime * 5f);
             }
             else
             {
