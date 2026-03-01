@@ -21,6 +21,7 @@ MonoBehaviour:
   Gravity: -20
   FallMultiplier: 2.5
   MaxFallSpeed: 60
+  GravityForceMultiplier: 1
   MaxJumps: 0
   BhopSpeedBoost: 1.12
   BhopMaxSpeedMult: 555
@@ -33,23 +34,30 @@ MonoBehaviour:
   WallRunGravity: -3
   WallRunJumpForce: 13
   WallRunJumpSideForce: 9
+  WallRunJumpForwardForce: 6
+  WallRunYawSpeed: 180
+  WallRunInitialUpForce: 0
+  WallRunEscapeForce: 30
   WallCheckDistance: 0.7
   WallRunTime: 0.8
   WallLayer:
     serializedVersion: 2
     m_Bits: 64
+  MaxSlopeAngle: 35
+  SurfSlopeAccel: 50
+  SurfGravityMultiplier: 1.5
   SlamForce: -45
   CrouchHeight: 1
   StandHeight: 3
   CrouchSpeed: 4
-  SlideForce: 28
-  SlideDuration: 2
+  SlideThreshold: 4
+  SlideForce: 15
   SlideFriction: 8
-  SlideMinSpeed: 2
-  SlideCooldown: 0.2
   AirDirectionChangeSpeed: 2000
   AirControlRequiresInput: 0
   MaxAirSpeed: 500
+  MaxAirStrafeSpeed: 60
+  AirStrafeAcceleration: 25
   MouseSensitivity: 0.15
   WallRunCameraTilt: -5
   CameraTiltSpeed: 12

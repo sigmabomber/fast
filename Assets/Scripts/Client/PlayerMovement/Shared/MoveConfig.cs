@@ -57,11 +57,9 @@ namespace PlayerMovement
         public float CrouchHeight      = 1.0f;
         public float StandHeight       = 2.0f;
         public float CrouchSpeed       = 8f;
-        public float SlideForce        = 28f;
-        public float SlideDuration     = 0.8f;
-        public float SlideFriction     = 8f;
-        public float SlideMinSpeed     = 4f;
-        public float SlideCooldown     = 0.4f;
+        public float SlideThreshold    = 4f;   // min speed to trigger slide
+        public float SlideForce        = 12f;  // initial boost when sliding
+        public float SlideFriction     = 0.08f; // momentum-proportional deceleration
 
         [Header("Air Control")]
         public float AirDirectionChangeSpeed = 15f;

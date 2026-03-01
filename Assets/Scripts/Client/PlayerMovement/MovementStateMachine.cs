@@ -71,6 +71,10 @@ namespace PlayerMovement
             bool isSliding = s.Flags.HasFlag(StateFlags.IsSliding);
             bool isDashing = s.Flags.HasFlag(StateFlags.IsDashing);
 
+            // capture horizontal velocity before movement simulation so slide start
+            // can use the pre-movement momentum (prevents losing speed when starting)
+            Vector3 preMoveFlatVel = new Vector3(s.Velocity.x, 0f, s.Velocity.z);
+
             if (!isSliding && !isWallRunning && !isDashing)
             {
                 if (isGrounded)
@@ -85,7 +89,7 @@ namespace PlayerMovement
 
             // Abilities
             Dash.Simulate(ref s, inp, forward, right);
-            Slide.Simulate(ref s, inp, forward, isGrounded);
+            Slide.Simulate(ref s, inp, forward, isGrounded, preMoveFlatVel);
             Slam.Simulate(ref s, inp, isGrounded);
             Gravity.Simulate(ref s, inp);
 

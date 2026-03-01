@@ -13,6 +13,9 @@ namespace PlayerMovement
 
         public void Simulate(ref PlayerState s, PlayerInput inp, Vector3 forward, Vector3 right)
         {
+            bool isCrouching = s.Flags.HasFlag(StateFlags.IsCrouching);
+            bool isSliding = s.Flags.HasFlag(StateFlags.IsSliding);
+            
             float targetSpeed = inp.Sprint ? _cfg.SprintSpeed : _cfg.WalkSpeed;
             
             // Calculate input direction: right * x (A/D) + forward * y (W/S)
@@ -39,8 +42,12 @@ namespace PlayerMovement
             }
             else
             {
+                // Speed sliding: when crouching and moving forward, maintain speed with reduced friction
+                bool speedSliding = isCrouching && !isSliding && flatVel.magnitude > _cfg.WalkSpeed;
+                float frictionToApply = speedSliding ? _cfg.Friction * 0.4f : _cfg.Friction;
+                
                 // Friction when no input
-                float brake = Mathf.Min(_cfg.Friction * inp.DeltaTime, flatVel.magnitude);
+                float brake = Mathf.Min(frictionToApply * inp.DeltaTime, flatVel.magnitude);
                 if (flatVel.magnitude > 0.01f)
                 {
                     s.Velocity.x -= flatVel.normalized.x * brake;

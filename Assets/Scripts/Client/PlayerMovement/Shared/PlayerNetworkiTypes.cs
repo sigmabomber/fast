@@ -46,12 +46,6 @@ namespace PlayerMovement
         // Wall run
         public float   WallRunTimer;
 
-        // Slide
-        public float   SlideCooldown;
-        public float   SlideDurationTimer;
-        public Vector3 SlideLockedDir;
-        public float   SlideCurrentSpeed;
-
         // Helpers
         public bool IsGrounded
         {
@@ -148,10 +142,6 @@ namespace PlayerMovement
             w.WriteSingle(s.DashTimer);
             w.WriteVector3(s.DashDirection);
             w.WriteSingle(s.WallRunTimer);
-            w.WriteSingle(s.SlideCooldown);
-            w.WriteSingle(s.SlideDurationTimer);
-            w.WriteVector3(s.SlideLockedDir);
-            w.WriteSingle(s.SlideCurrentSpeed);
         }
         public static PlayerState ReadPlayerState(this Reader r)
         {
@@ -170,10 +160,6 @@ namespace PlayerMovement
             s.DashTimer         = r.ReadSingle();
             s.DashDirection     = r.ReadVector3();
             s.WallRunTimer      = r.ReadSingle();
-            s.SlideCooldown     = r.ReadSingle();
-            s.SlideDurationTimer= r.ReadSingle();
-            s.SlideLockedDir    = r.ReadVector3();
-            s.SlideCurrentSpeed = r.ReadSingle();
             return s;
         }
     }
