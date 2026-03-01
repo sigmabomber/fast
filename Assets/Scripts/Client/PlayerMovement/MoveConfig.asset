@@ -34,7 +34,7 @@ MonoBehaviour:
   WallRunJumpForce: 13
   WallRunJumpSideForce: 9
   WallCheckDistance: 0.7
-  WallRunTime: 1.5
+  WallRunTime: 0.8
   WallLayer:
     serializedVersion: 2
     m_Bits: 64
@@ -43,7 +43,7 @@ MonoBehaviour:
   StandHeight: 3
   CrouchSpeed: 4
   SlideForce: 28
-  SlideDuration: 555
+  SlideDuration: 2
   SlideFriction: 8
   SlideMinSpeed: 2
   SlideCooldown: 0.2

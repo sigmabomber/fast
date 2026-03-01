@@ -140,15 +140,8 @@ namespace PlayerMovement
             if (!wasGrounded)
                 s.JumpsRemaining = Mathf.Max(s.JumpsRemaining - 1, 0);
 
-            if (horizontalSpeed > 0.1f)
-            {
-                float boostedSpeed = Mathf.Min(horizontalSpeed * s.BhopSpeedMult,
-                                              _cfg.WalkSpeed * _cfg.BhopMaxSpeedMult);
-                
-                Vector2 direction = horizontalVel.normalized;
-                s.Velocity.x = direction.x * boostedSpeed;
-                s.Velocity.z = direction.y * boostedSpeed;
-            }
+            // Preserve horizontal momentum as-is; no boost
+            // Just keep the direction and speed you had before jumping
         }
     }
 }

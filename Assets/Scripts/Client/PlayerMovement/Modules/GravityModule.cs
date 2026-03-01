@@ -18,7 +18,8 @@ namespace PlayerMovement
             if (s.Flags.HasFlag(StateFlags.IsWallRunning)) return;
             if (s.Flags.HasFlag(StateFlags.IsDashing)) return;
 
-            float multiplier = (s.Velocity.y < 0f || !inp.JumpHeld) ? _cfg.FallMultiplier : 1f;
+            // Apply consistent gravity always - no jump-hold bonus
+            float multiplier = s.Velocity.y < 0f ? _cfg.FallMultiplier : 1f;
             s.Velocity.y += _cfg.Gravity * multiplier * inp.DeltaTime;
             s.Velocity.y = Mathf.Max(s.Velocity.y, -_cfg.MaxFallSpeed);
         }
