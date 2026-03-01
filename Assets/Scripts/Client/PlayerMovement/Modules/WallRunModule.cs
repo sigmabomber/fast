@@ -40,6 +40,15 @@ namespace PlayerMovement
 
         public void Simulate(ref PlayerState s, PlayerInput inp, Vector3 forward, bool isGrounded)
         {
+            // Wallrun ends immediately if grounded
+            if (isGrounded)
+            {
+                s.Flags &= ~StateFlags.IsWallRunning;
+                s.Flags &= ~StateFlags.IsOnLeftWall;
+                s.Flags &= ~StateFlags.IsOnRightWall;
+                return;
+            }
+
             bool canWallRun = (IsOnLeftWall || IsOnRightWall) && !isGrounded;
 
             if (canWallRun)
@@ -77,13 +86,16 @@ namespace PlayerMovement
                     return;
                 }
 
+                // Calculate direction along the wall, perpendicular to the normal
                 Vector3 wallNormal = IsOnLeftWall ? LeftWallHit.normal : RightWallHit.normal;
-                Vector3 wallForward = Vector3.Cross(wallNormal, Vector3.up);
+                Vector3 wallForward = Vector3.Cross(wallNormal, Vector3.up).normalized;
                 
+                // Ensure wallForward points in a sensible direction relative to movement
                 if (Vector3.Dot(wallForward, forward) < 0f)
                     wallForward = -wallForward;
 
-                s.Velocity = wallForward * _cfg.WallRunSpeed;
+                s.Velocity.x = wallForward.x * _cfg.WallRunSpeed;
+                s.Velocity.z = wallForward.z * _cfg.WallRunSpeed;
                 s.Velocity.y = Mathf.Lerp(s.Velocity.y, _cfg.WallRunGravity, inp.DeltaTime * 5f);
             }
             else

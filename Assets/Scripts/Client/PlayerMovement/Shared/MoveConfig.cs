@@ -14,9 +14,9 @@ namespace PlayerMovement
         public float Friction           = 30f;
 
         [Header("Jump")]
-        public float JumpForce       = 12f;
-        public float Gravity         = -35f;
-        public float FallMultiplier  = 2.2f;
+        public float JumpForce       = 13f;   // slight boost to compensate for lower gravity
+        public float Gravity         = -25f;  // reduced for gentler arc
+        public float FallMultiplier  = 1.4f;  // reduced for smoother descent
         public float MaxFallSpeed    = 60f;
         public int   MaxJumps        = 2;
 
