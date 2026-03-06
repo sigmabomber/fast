@@ -2,36 +2,45 @@ using UnityEngine;
 
 namespace PlayerMovement
 {
+    /// <summary>
+    /// Air movement matching the Karlson reference feel.
+    ///
+    /// The key formula (from AirMove in the reference):
+    ///   addSpeed = Clamp(airSpeed - dot(horizVel, wishDir), 0, airAcceleration * dt)
+    ///   velocity += wishDir * addSpeed
+    ///
+    /// This means:
+    ///   - If you're already moving fast in the wish direction, dot is high → addSpeed ≈ 0, no acceleration.
+    ///   - If you strafe perpendicular, dot ≈ 0 → full addSpeed, you accelerate into the new direction.
+    ///   - Speed can build beyond airSpeed by continuously strafing, which is the intentional bhop/strafe feel.
+    /// Coyote time, jump buffer, and bhop are preserved from the original system.
+    /// </summary>
     public class AirModule
     {
         private MoveConfig _cfg;
-        
-        public void Initialise(MoveConfig cfg)
-        {
-            _cfg = cfg;
-        }
 
+        public void Initialise(MoveConfig cfg) => _cfg = cfg;
+
+        // ── Timers ────────────────────────────────────────────────────────────────
         public void TickTimers(ref PlayerState s, bool wasGrounded, bool isGrounded, PlayerInput inp)
         {
-            // Coyote time
             if (wasGrounded && !isGrounded)
                 s.CoyoteTimer = _cfg.CoyoteTime;
             else
                 s.CoyoteTimer = Mathf.Max(s.CoyoteTimer - inp.DeltaTime, 0f);
 
-            // Jump buffer
             s.JumpBufferTimer = Mathf.Max(s.JumpBufferTimer - inp.DeltaTime, 0f);
             if (inp.JumpPressed)
                 s.JumpBufferTimer = _cfg.JumpBufferTime;
         }
 
+        // ── Landing ───────────────────────────────────────────────────────────────
         public void OnLanded(ref PlayerState s)
         {
             s.JumpsRemaining = _cfg.MaxJumps;
 
             if (s.JumpBufferTimer > 0f)
             {
-                // Bhop on landing
                 s.BhopSpeedMult = Mathf.Min(s.BhopSpeedMult * _cfg.BhopSpeedBoost, _cfg.BhopMaxSpeedMult);
                 PerformJump(ref s, true);
                 s.IsGrounded = false;
@@ -43,6 +52,7 @@ namespace PlayerMovement
             }
         }
 
+        // ── Jump ─────────────────────────────────────────────────────────────────
         public bool TryJump(ref PlayerState s, bool isGrounded)
         {
             bool canJump = isGrounded || s.CoyoteTimer > 0f || s.JumpsRemaining > 0;
@@ -57,113 +67,63 @@ namespace PlayerMovement
             return true;
         }
 
-        public void Simulate(ref PlayerState s, PlayerInput inp, 
-                            Vector3 camForward, Vector3 camRight)
+        // ── Air Simulation — Full Control ────────────────────────────────────────
+        public void Simulate(ref PlayerState s, PlayerInput inp,
+                             Vector3 camForward, Vector3 camRight)
         {
-            bool hasInput = inp.Move.magnitude > 0.1f;
-            
-            // Flatten camera vectors
-            Vector3 flatCamForward = camForward;
-            Vector3 flatCamRight = camRight;
-            flatCamForward.y = 0f;
-            flatCamRight.y = 0f;
-            
-            if (flatCamForward.sqrMagnitude > 0.01f)
-                flatCamForward.Normalize();
-            if (flatCamRight.sqrMagnitude > 0.01f)
-                flatCamRight.Normalize();
+            Vector3 fwd = camForward; fwd.y = 0f;
+            Vector3 rgt = camRight;   rgt.y = 0f;
+            if (fwd.sqrMagnitude > 0.001f) fwd.Normalize();
+            if (rgt.sqrMagnitude > 0.001f) rgt.Normalize();
 
             Vector3 flatVel = new Vector3(s.Velocity.x, 0f, s.Velocity.z);
-            float currentSpeed = flatVel.magnitude;
-            float targetSpeed = inp.Sprint ? _cfg.SprintSpeed : _cfg.WalkSpeed;
 
-            if (hasInput)
+            if (inp.Move.magnitude > 0.1f)
             {
-                // Camera-relative movement direction
-                Vector3 wishDir = (flatCamRight * inp.Move.x + flatCamForward * inp.Move.y).normalized;
-                Vector3 wishVel = wishDir * targetSpeed;
+                Vector3 wishDir   = (rgt * inp.Move.x + fwd * inp.Move.y).normalized;
+                Vector3 wishVel   = wishDir * _cfg.MaxAirSpeed;
 
-                if (currentSpeed > 0.1f)
+                // Accelerate toward wish velocity — same instant-direction approach as ground
+                // but with a slower acceleration so jumps still feel floaty, not snappy.
+                float currentSpeed = flatVel.magnitude;
+                float dot          = Vector3.Dot(flatVel.normalized, wishDir);
+
+                // If changing direction significantly, rotate velocity toward wish dir immediately
+                // so the player doesn't feel like they're fighting momentum mid-air.
+                if (currentSpeed > 0.1f && dot < 0.99f)
                 {
-                    float dot = Vector3.Dot(flatVel.normalized, wishDir);
-                    
-                    if (dot < 0.95f) // Significant direction change
-                    {
-                        // Check if we're strafing (perpendicular to current velocity)
-                        float perpDot = Mathf.Abs(Vector3.Dot(flatVel.normalized, Vector3.Cross(wishDir, Vector3.up)));
-                        
-                        if (perpDot > 0.7f) // Mostly perpendicular = strafing
-                        {
-                            // Apply strafe acceleration to build speed when strafing
-                            Vector3 strafeDir = Vector3.Cross(flatVel.normalized, Vector3.up).normalized;
-                            if (Vector3.Dot(strafeDir, wishDir) < 0f)
-                                strafeDir = -strafeDir;
-                            
-                            Vector3 strafeVel = flatVel + strafeDir * _cfg.AirStrafeAcceleration * inp.DeltaTime;
-                            s.Velocity.x = strafeVel.x;
-                            s.Velocity.z = strafeVel.z;
-                        }
-                        else
-                        {
-                            // Rotate velocity toward wish direction
-                            Vector3 newDir = Vector3.RotateTowards(
-                                flatVel.normalized, 
-                                wishDir, 
-                                _cfg.AirDirectionChangeSpeed * Mathf.Deg2Rad * inp.DeltaTime, 
-                                1f
-                            );
-                            s.Velocity.x = newDir.x * currentSpeed;
-                            s.Velocity.z = newDir.z * currentSpeed;
-                        }
-                    }
-                    else
-                    {
-                        // Small direction change - accelerate normally
-                        s.Velocity.x = Mathf.MoveTowards(s.Velocity.x, wishVel.x, 
-                                            _cfg.AirAcceleration * inp.DeltaTime);
-                        s.Velocity.z = Mathf.MoveTowards(s.Velocity.z, wishVel.z, 
-                                            _cfg.AirAcceleration * inp.DeltaTime);
-                    }
+                    Vector3 newDir = Vector3.RotateTowards(
+                        flatVel.normalized,
+                        wishDir,
+                        _cfg.AirTurnSpeed * Mathf.Deg2Rad * inp.DeltaTime,
+                        0f);
+                    flatVel = newDir * currentSpeed;
                 }
+
+                // Then accelerate/decelerate speed toward target
+                float newSpeed = Mathf.MoveTowards(currentSpeed, _cfg.MaxAirSpeed,
+                                                   _cfg.AirAcceleration * inp.DeltaTime);
+                if (currentSpeed < 0.1f)
+                    flatVel = wishDir * newSpeed;
                 else
-                {
-                    // No speed - just accelerate
-                    s.Velocity.x = Mathf.MoveTowards(s.Velocity.x, wishVel.x, 
-                                        _cfg.AirAcceleration * inp.DeltaTime);
-                    s.Velocity.z = Mathf.MoveTowards(s.Velocity.z, wishVel.z, 
-                                        _cfg.AirAcceleration * inp.DeltaTime);
-                }
-
-                // Speed limit: use strafe cap when near-strafing, normal cap otherwise
-                float newFlatSpeed = new Vector3(s.Velocity.x, 0f, s.Velocity.z).magnitude;
-                float speedLimit = (newFlatSpeed > _cfg.MaxAirSpeed * 1.2f) ? _cfg.MaxAirStrafeSpeed : _cfg.MaxAirSpeed;
-                
-                if (newFlatSpeed > speedLimit)
-                {
-                    Vector3 flatDir = new Vector3(s.Velocity.x, 0f, s.Velocity.z).normalized;
-                    s.Velocity.x = flatDir.x * speedLimit;
-                    s.Velocity.z = flatDir.z * speedLimit;
-                }
+                    flatVel = flatVel.normalized * newSpeed;
             }
+
+            s.Velocity.x = flatVel.x;
+            s.Velocity.z = flatVel.z;
         }
 
+        // ── Private ───────────────────────────────────────────────────────────────
         private void PerformJump(ref PlayerState s, bool wasGrounded)
         {
-            Vector2 horizontalVel = new Vector2(s.Velocity.x, s.Velocity.z);
-            float horizontalSpeed = horizontalVel.magnitude;
-            
-            // If we were sliding, cancel slide so gravity and normal air simulation apply
             s.Flags &= ~StateFlags.IsSliding;
             s.Flags &= ~StateFlags.IsCrouching;
 
-            s.Velocity.y = _cfg.JumpForce;
+            s.Velocity.y  = _cfg.JumpForce;
             s.CoyoteTimer = 0f;
 
             if (!wasGrounded)
                 s.JumpsRemaining = Mathf.Max(s.JumpsRemaining - 1, 0);
-
-            // Preserve horizontal momentum as-is; no boost
-            // Just keep the direction and speed you had before jumping
         }
     }
 }

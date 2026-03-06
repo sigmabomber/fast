@@ -15,50 +15,51 @@ MonoBehaviour:
   WalkSpeed: 8
   SprintSpeed: 12
   GroundAcceleration: 8.3
+  Friction: 25
+  StopSpeed: 4
+  MaxAirSpeed: 20
   AirAcceleration: 6.7
-  Friction: 16.7
+  AirTurnSpeed: 2000
   JumpForce: 10
   Gravity: -20
   FallMultiplier: 2.5
   MaxFallSpeed: 60
-  GravityForceMultiplier: 1
   MaxJumps: 0
-  BhopSpeedBoost: 1.12
-  BhopMaxSpeedMult: 555
-  JumpBufferTime: 0.15
   CoyoteTime: 0.12
-  DashForce: 30
-  DashDuration: 0.1
-  DashCooldown: 0.8
+  JumpBufferTime: 0.15
+  BhopSpeedBoost: 1.12
+  BhopMaxSpeedMult: 10
+  SlideThreshold: 4
+  SlideBoostFactor: 1
+  SlideMinBoost: 4
+  SlideFriction: 10
+  SlopeSlideBoost: 40
+  SlideExitMomentumBuffer: 0.25
   WallRunSpeed: 12
   WallRunGravity: -3
+  WallRunTime: 0.8
   WallRunJumpForce: 13
   WallRunJumpSideForce: 9
   WallRunJumpForwardForce: 6
   WallRunYawSpeed: 180
-  WallRunInitialUpForce: 0
-  WallRunEscapeForce: 30
   WallCheckDistance: 0.7
-  WallRunTime: 0.8
   WallLayer:
     serializedVersion: 2
     m_Bits: 64
-  MaxSlopeAngle: 35
-  SurfSlopeAccel: 50
-  SurfGravityMultiplier: 1.5
+  LeanAngle: 16
+  LeanSpeed: 12
+  LeanPeekOffset: 0.3
+  DashForce: 30
+  DashDuration: 0.1
+  DashCooldown: 0.8
   SlamForce: -45
   CrouchHeight: 1
   StandHeight: 3
-  CrouchSpeed: 4
-  SlideThreshold: 4
-  SlideForce: 15
-  SlideFriction: 8
-  AirDirectionChangeSpeed: 2000
-  AirControlRequiresInput: 0
-  MaxAirSpeed: 500
-  MaxAirStrafeSpeed: 60
-  AirStrafeAcceleration: 25
+  CameraCrouchSpeed: 14
+  MaxSlopeAngle: 35
+  SurfSlopeAccel: 50
+  SurfGravityMultiplier: 1.5
+  GravityForceMultiplier: 1
   MouseSensitivity: 0.15
   WallRunCameraTilt: -5
   CameraTiltSpeed: 12
-  CameraCrouchSpeed: 14

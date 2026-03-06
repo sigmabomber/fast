@@ -8,52 +8,54 @@ namespace PlayerMovement
     public class PlayerNetworkController : NetworkBehaviour
     {
         [SerializeField] private MoveConfig _cfg;
-        [SerializeField] private Transform _cameraTransform;
-        [SerializeField] private Camera _playerCamera;
+        [SerializeField] private Transform  _cameraTransform;
+        [SerializeField] private Camera     _playerCamera;
 
         [Header("Interpolation")]
         [SerializeField] private float _interpSpeed = 120f;
 
-        private MovementSimulation _sim;
-        private InputModule _input;
-        private CameraModule _camMod;
+        private MovementSimulation  _sim;
+        private InputModule         _input;
+        private CameraModule        _camMod;
         private CharacterController _cc;
-        private PlayerState _state;
-        private Vector3 _targetPos;
-        private float _targetYaw;
-        private bool _hasTarget;
-        // vertical rotation is now maintained by CameraModule; keep for legacy uses
-        private float _verticalRotation;
+        private PlayerState         _state;
+        private Vector3             _targetPos;
+        private float               _targetYaw;
+        private bool                _hasTarget;
+
+        // ── Grounded buffering ───────────────────────────────────────────────────
+        // cc.isGrounded only returns true the frame *after* the controller has
+        // settled on the ground. At low tick-rates (FishNet default ~20 Hz) this
+        // causes a one-tick gap that breaks the slide entry condition.
+        // We latch "grounded" for one extra tick so the condition is always stable.
+        private bool _groundedLastTick;
+        private const float GroundedLatchFrames = 2; // ticks to stay "grounded" after leaving
+        private int  _groundedLatchCounter;
 
         public override void OnStartServer()
         {
             base.OnStartServer();
-            _cc = GetComponent<CharacterController>();
+            _cc  = GetComponent<CharacterController>();
             _sim = new MovementSimulation();
             _sim.Initialise(_cfg, transform, _cc, IsCrouchBlocked, _cameraTransform);
 
-            _state.Position = transform.position;
-            _state.YawDegrees = transform.eulerAngles.y;
+            _state.Position      = transform.position;
+            _state.YawDegrees    = transform.eulerAngles.y;
             _state.BhopSpeedMult = 1f;
-            _state.IsGrounded = _cc.isGrounded;
+            _state.IsGrounded    = _cc.isGrounded;
         }
 
         public override void OnStartClient()
         {
             base.OnStartClient();
-            _cc = GetComponent<CharacterController>();
+            _cc  = GetComponent<CharacterController>();
 
-            // Initialise a local simulation on the client so the owner can
-            // perform client-side prediction for smooth, low-latency movement.
             _sim = new MovementSimulation();
             _sim.Initialise(_cfg, transform, _cc, IsCrouchBlocked, _cameraTransform);
 
-            // camera helper (used by owner for look/tilt, harmless for others)
             _camMod = new CameraModule();
             _camMod.Initialise(_cfg, _cameraTransform);
 
-            // Disable the character controller on non-owned clients when the
-            // server isn't running locally so only the owner simulates movement.
             if (!IsServerInitialized && !IsOwner)
                 _cc.enabled = false;
 
@@ -63,17 +65,16 @@ namespace PlayerMovement
                 _input.Initialise();
                 _cc.enabled = true;
 
-                // Seed local state for prediction
-                _state.Position = transform.position;
-                _state.YawDegrees = transform.eulerAngles.y;
+                _state.Position      = transform.position;
+                _state.YawDegrees    = transform.eulerAngles.y;
                 _state.BhopSpeedMult = 1f;
-                _state.IsGrounded = _cc.isGrounded;
+                _state.IsGrounded    = _cc.isGrounded;
 
                 if (_playerCamera)
                 {
                     _playerCamera.enabled = true;
                     Cursor.lockState = CursorLockMode.Locked;
-                    Cursor.visible = false;
+                    Cursor.visible   = false;
                 }
 
                 TimeManager.OnTick += OnOwnerTick;
@@ -95,88 +96,100 @@ namespace PlayerMovement
             }
         }
 
-        private bool IsCrouchBlocked()
-        {
-            return Physics.SphereCast(transform.position, _cc.radius, Vector3.up,
+        private bool IsCrouchBlocked() =>
+            Physics.SphereCast(transform.position, _cc.radius, Vector3.up,
                 out _, _cfg.StandHeight - _cfg.CrouchHeight + 0.05f);
+
+        // ── Grounded helper ──────────────────────────────────────────────────────
+        // Returns a latched grounded value that stays true for GroundedLatchFrames
+        // ticks after cc.isGrounded goes false. This smooths over the one-tick gap
+        // that CharacterController has after a Move() call at low tick rates.
+        private bool GetLatchedGrounded()
+        {
+            if (_cc.isGrounded)
+            {
+                _groundedLatchCounter = (int)GroundedLatchFrames;
+                return true;
+            }
+
+            if (_groundedLatchCounter > 0)
+            {
+                _groundedLatchCounter--;
+                return true;
+            }
+
+            return false;
         }
 
         private void OnOwnerTick()
         {
-            uint tick = TimeManager.LocalTick;
-            float dt = (float)TimeManager.TickDelta;
+            uint  tick = TimeManager.LocalTick;
+            float dt   = (float)TimeManager.TickDelta;
 
             PlayerInput inp = _input.Build(tick, dt);
 
-            // Handle look locally through the camera module
-            Vector2 look = inp.Look;
-            _camMod.ApplyLook(transform, look);
+            // Look
+            _camMod.ApplyLook(transform, inp.Look);
 
-            // --- Local prediction: simulate movement locally before sending input ---
-            Vector3 camForward = _cameraTransform.forward;
-            Vector3 camRight = _cameraTransform.right;
+            // FIX: Use latched grounded so slide entry condition is stable across ticks
+            _state.IsGrounded = GetLatchedGrounded();
 
-            // inform the sim whether we're presently grounded before prediction
-            _state.IsGrounded = _cc.isGrounded;
+            PlayerState next = _sim.Step(_state, inp,
+                _cameraTransform.forward, _cameraTransform.right,
+                transform.eulerAngles.y);
 
-            PlayerState next = _sim.Step(_state, inp, camForward, camRight, transform.eulerAngles.y);
-
-            // Apply predicted movement immediately for smooth responsiveness
             _cc.Move(next.Velocity * inp.DeltaTime);
-            next.IsGrounded = _cc.isGrounded;
-            next.Position = transform.position;
-            next.Tick = inp.Tick;
-            _state = next;
 
-            // camera visual updates (tilt & height)
-            bool wallRun    = next.Flags.HasFlag(StateFlags.IsWallRunning);
-            bool onRight    = next.Flags.HasFlag(StateFlags.IsOnRightWall);
-            bool crouching  = next.Flags.HasFlag(StateFlags.IsCrouching);
+            // FIX: After Move(), read the real grounded state and latch it for next tick,
+            // but do NOT clobber IsSliding/IsCrouching flags that Step() just set.
+            bool physicsGrounded = GetLatchedGrounded();
+            next.IsGrounded = physicsGrounded;
+            next.Position   = transform.position;
+            next.Tick       = inp.Tick;
+            _state          = next;
 
-            // Auto-follow curved walls: gently rotate the body toward the
-            // wall-forward direction so the player doesn't need to move the
-            // mouse to maintain the run.
+            // Auto-align body to wall during wallrun
+            bool wallRun = next.Flags.HasFlag(StateFlags.IsWallRunning);
             if (wallRun && _sim != null)
             {
-                // read wall info from the wallrun module
                 Vector3 wallNormal = _sim.WallRun.IsOnLeftWall
                     ? _sim.WallRun.LeftWallHit.normal
                     : _sim.WallRun.RightWallHit.normal;
-
                 Vector3 wallForward = Vector3.Cross(wallNormal, Vector3.up).normalized;
                 if (Vector3.Dot(wallForward, transform.forward) < 0f)
                     wallForward = -wallForward;
 
                 float targetYaw = Mathf.Atan2(wallForward.x, wallForward.z) * Mathf.Rad2Deg;
-                float curYaw = transform.eulerAngles.y;
-                float newYaw = Mathf.MoveTowardsAngle(curYaw, targetYaw, _cfg.WallRunYawSpeed * inp.DeltaTime);
+                float newYaw = Mathf.MoveTowardsAngle(
+                    transform.eulerAngles.y, targetYaw,
+                    _cfg.WallRunYawSpeed * inp.DeltaTime);
                 transform.rotation = Quaternion.Euler(0f, newYaw, 0f);
             }
 
-            _camMod.UpdateVisuals(wallRun, onRight, crouching, inp.DeltaTime);
+            // Camera visuals
+            bool onRight   = next.Flags.HasFlag(StateFlags.IsOnRightWall);
+            bool crouching = next.Flags.HasFlag(StateFlags.IsCrouching);
+            float leanRoll = _sim.Lean.LeanRoll;
 
-            // Send the same input to the server (server remains authoritative)
+            _camMod.UpdateVisuals(wallRun, onRight, crouching, leanRoll, inp.DeltaTime);
+
             SendInputToServer(inp, transform.eulerAngles.y);
         }
 
         [ServerRpc(RequireOwnership = true)]
         private void SendInputToServer(PlayerInput input, float clientYaw)
         {
-            Vector3 camForward = _cameraTransform.forward;
-            Vector3 camRight = _cameraTransform.right;
+            _state.IsGrounded = GetLatchedGrounded();
 
-            // make sure simulation knows whether we're currently touching the ground
-            _state.IsGrounded = _cc.isGrounded;
+            PlayerState next = _sim.Step(_state, input,
+                _cameraTransform.forward, _cameraTransform.right, clientYaw);
 
-            PlayerState next = _sim.Step(_state, input, camForward, camRight, clientYaw);
-
-            // apply movement and then refresh grounded flag for the next tick
             _cc.Move(next.Velocity * input.DeltaTime);
-            next.IsGrounded = _cc.isGrounded;
-            next.Position = transform.position;
-            next.Tick = input.Tick;
 
-            _state = next;
+            next.IsGrounded = GetLatchedGrounded();
+            next.Position   = transform.position;
+            next.Tick       = input.Tick;
+            _state          = next;
 
             BroadcastState(next);
         }
